@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InSituSieve: Mars Atmospheric CO₂ Sorption Cryo-Pump Auditor</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Bulletproof MathJax v3 Setup (must precede library load) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      svg: { fontCache: 'global' },
+      startup: {
+        typeset: true
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            space: {
+              950: '#03050a',
+              900: '#05070d',
+              800: '#0b1120',
+              700: '#141d33',
+              600: '#1e2b4d'
+            },
+            mars: {
+              400: '#fb7185',
+              500: '#f43f5e',
+              600: '#e11d48',
+              800: '#881337',
+              900: '#4c0519'
+            },
+            neon: {
+              cyan: '#06b6d4',
+              violet: '#8b5cf6',
+              amber: '#f59e0b',
+              emerald: '#10b981',
+              rose: '#f43f5e'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #03050a;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .formula-box {
+      background: #020408;
+      border: 1px solid rgba(14, 165, 233, 0.25);
+      box-shadow: inset 0 0 15px rgba(6, 182, 212, 0.05);
+    }
+    .glass-panel {
+      background: rgba(11, 17, 32, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .hud-border {
+      border: 1px solid rgba(6, 182, 212, 0.2);
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.05);
+    }
+    .hud-border-danger {
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.1);
+    }
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #05070d;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans">
+
+  <!-- TOP HEADER / NAV BAR -->
+  <header class="sticky top-0 z-50 glass-panel border-b border-gray-800 px-4 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3.5">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-rose-500 to-amber-500 p-[1.5px] flex items-center justify-center shadow-lg shadow-cyan-500/20">
+        <div class="w-full h-full bg-space-950 rounded-[10px] flex items-center justify-center">
+          <i data-lucide="snowflake" class="w-5 h-5 text-cyan-400"></i>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+            InSituSieve <span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/30 font-mono">MARS ISRU</span>
+          </h1>
+          <span class="text-xs text-gray-500 hidden sm:inline">|</span>
+          <span class="text-xs text-cyan-400 font-mono hidden sm:inline">CO₂ Sorption Cryo-Pump Auditor</span>
+        </div>
+        <p class="text-[11px] text-gray-400">NASA Topic TX06.01: In-Situ Propellant & Zeolite Bed Freeze Protection</p>
+      </div>
+    </div>
+
+    <!-- Active Navigation Tabs -->
+    <nav class="flex items-center bg-space-900 p-1 rounded-xl border border-gray-800 text-xs font-medium">
+      <button id="tabBtnSim" onclick="switchTab('sim')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-white bg-cyan-600/30 border border-cyan-500/40 shadow-sm transition">
+        <i data-lucide="activity" class="w-3.5 h-3.5 text-cyan-400"></i>
+        <span>Live Telemetry HUD</span>
+      </button>
+      <button id="tabBtnPhysics" onclick="switchTab('physics')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-gray-400 hover:text-gray-200 transition">
+        <i data-lucide="atom" class="w-3.5 h-3.5"></i>
+        <span>Physics & Math Formulation</span>
+      </button>
+      <button id="tabBtnProposal" onclick="switchTab('proposal')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-gray-400 hover:text-gray-200 transition">
+        <i data-lucide="file-check-2" class="w-3.5 h-3.5"></i>
+        <span>NASA Phase I Proposal</span>
+      </button>
+      <button id="tabBtnARR" onclick="switchTab('arr')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-gray-400 hover:text-gray-200 transition">
+        <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+        <span>Civil ARR Model ($214M)</span>
+      </button>
+    </nav>
+
+    <!-- System Vital Status & Emergency Reset -->
+    <div class="flex items-center gap-3">
+      <div id="liveAlarmPill" class="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span id="alarmStatusText">NOMINAL ADSORB</span>
+      </div>
+      <button onclick="window.print()" class="hidden md:flex items-center gap-1.5 px-2.5 py-1 text-xs text-gray-400 hover:text-white bg-gray-800/60 rounded-lg border border-gray-700 transition" title="Export PDF Brief">
+        <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+        <span>Print Report</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN VIEW CONTAINER -->
+  <main class="flex-1 p-4 lg:p-6 max-w-[1600px] w-full mx-auto space-y-6">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD (#viewSim)                        -->
+    <!-- ========================================================================= -->
+    <div id="viewSim" class="space-y-6">
+      
+      <!-- Top Alert Ribbon: Physical Insight & State Notification -->
+      <div class="glass-panel p-4 rounded-2xl border border-gray-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+          <div class="p-2.5 rounded-xl bg-cyan-950/80 border border-cyan-800/40 text-cyan-400">
+            <i data-lucide="flame-kindling" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="text-xs uppercase tracking-wider text-cyan-400 font-mono font-semibold">Core ISRU Dynamic Diagnostic</div>
+            <div class="text-sm font-medium text-gray-200">
+              Tracking Phase Trajectory $(\dot{m}, T)$: Balancing Exothermic Heat of Adsorption with Atmospheric Vacuum Induction
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5">
+              Target Alert: If Mass Flow ($\dot{m}$) drops while Temperature ($T$) plunges into the $T < 149\,\text{K}$ Sublimation Trap, dry-ice solidifies inside Zeolite 13X duct channels.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button id="btnAutoRecover" onclick="toggleAutonomousRecovery()" class="px-3 py-1.5 rounded-lg text-xs font-medium border border-cyan-500/50 bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 flex items-center gap-1.5 transition">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+            <span id="autoRecoverText">Auto-Observer: ACTIVE</span>
+          </button>
+          <button onclick="resetSimulationNominal()" class="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-700 bg-gray-800 text-gray-300 hover:text-white hover:bg-gray-700 flex items-center gap-1.5 transition">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span>Reset Baseline</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Interactive HUD Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Interactive Canvas Visualization of Mars Sorption Bed (7 Cols) -->
+        <div class="lg:col-span-7 glass-panel p-5 rounded-2xl hud-border flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="layers" class="w-4 h-4 text-cyan-400"></i>
+              <h2 class="text-sm font-bold tracking-tight text-white uppercase font-mono">Cryo-Sorption Bed Physical Model (Zeolite 13X Core)</h2>
+            </div>
+            <div class="flex items-center gap-3 text-xs font-mono">
+              <span class="text-gray-400">Chamber: <strong id="hudChamberP" class="text-cyan-300">6.12 mbar</strong></span>
+              <span class="text-gray-400">Regime: <strong id="hudCycleRegime" class="text-emerald-400">ADSORPTION</strong></span>
+            </div>
+          </div>
+
+          <!-- Canvas Container -->
+          <div class="relative w-full h-[320px] bg-space-950 rounded-xl overflow-hidden border border-gray-800/80">
+            <canvas id="sorptionCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Canvas Overlay Badges -->
+            <div class="absolute top-3 left-3 bg-space-900/90 border border-gray-700/60 rounded-lg p-2.5 backdrop-blur text-[11px] font-mono space-y-1">
+              <div class="text-gray-400 flex items-center justify-between gap-3">
+                <span>Inlet Dust / Gas Vane:</span>
+                <span id="overlayInletSpeed" class="text-cyan-300 font-semibold">1,240 RPM</span>
+              </div>
+              <div class="text-gray-400 flex items-center justify-between gap-3">
+                <span>Core Heat Exchanger:</span>
+                <span id="overlayHeaterDuty" class="text-amber-400 font-semibold">18.4 W</span>
+              </div>
+              <div class="text-gray-400 flex items-center justify-between gap-3">
+                <span>Solid $CO_2$ Caking Risk:</span>
+                <span id="overlayFrostMetric" class="text-emerald-400 font-semibold">0.02%</span>
+              </div>
+            </div>
+
+            <!-- Warning Watermark overlay if frozen -->
+            <div id="freezeWarningBanner" class="hidden absolute inset-0 bg-rose-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
+              <i data-lucide="alert-triangle" class="w-12 h-12 text-rose-400 animate-bounce mb-2"></i>
+              <h3 class="text-lg font-bold text-white tracking-wide">CRITICAL: SOLID CO₂ DRY-ICE CHOKING DETECTED</h3>
+              <p class="text-xs text-rose-200 max-w-md mt-1">
+                Sublimation cooling rapidly outpaced latent heat generation ($\dot{m} < 0.12\,\text{g/s}$, $T < 145\,\text{K}$). Intake duct pores occluded. Autonomous defrost heater engaged.
+              </p>
+              <button onclick="executeEmergencyDefrost()" class="mt-3 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold uppercase tracking-wider shadow-lg shadow-rose-600/40 transition">
+                Execute Forced Thermal Defrost
+              </button>
+            </div>
+          </div>
+
+          <!-- Physical Legend below canvas -->
+          <div class="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-gray-800/60 text-[11px] font-mono text-center">
+            <div class="p-2 rounded bg-space-900/60 border border-gray-800">
+              <span class="text-gray-400 block text-[10px]">INLET MASS FLOW</span>
+              <span id="valMassFlow" class="text-cyan-400 font-bold text-sm">0.82 g/s</span>
+            </div>
+            <div class="p-2 rounded bg-space-900/60 border border-gray-800">
+              <span class="text-gray-400 block text-[10px]">BED TEMPERATURE</span>
+              <span id="valBedTemp" class="text-rose-400 font-bold text-sm">178.5 K</span>
+            </div>
+            <div class="p-2 rounded bg-space-900/60 border border-gray-800">
+              <span class="text-gray-400 block text-[10px]">EXOTHERMIC $\Delta Q$</span>
+              <span id="valLatentHeat" class="text-amber-400 font-bold text-sm">+29.8 W</span>
+            </div>
+            <div class="p-2 rounded bg-space-900/60 border border-gray-800">
+              <span class="text-gray-400 block text-[10px]">DESORPTION HEAD</span>
+              <span id="valCompHead" class="text-emerald-400 font-bold text-sm">4.85 bar</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Primary Diagnostic Trajectory Chart (5 Cols) -->
+        <div class="lg:col-span-5 glass-panel p-5 rounded-2xl hud-border flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <div class="flex items-center gap-1.5">
+                <i data-lucide="crosshair" class="w-4 h-4 text-rose-400"></i>
+                <h3 class="text-sm font-bold text-white uppercase font-mono">Phase-Space Auditor: $( \dot{m} \text{ vs. } T )$</h3>
+              </div>
+              <p class="text-[11px] text-gray-400">X: Mass Flow $\dot{m}$ (g/s) | Y: Bed Temperature $T$ (K)</p>
+            </div>
+            <span class="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800 text-[10px] text-cyan-300 font-mono">10 Hz EKF</span>
+          </div>
+
+          <!-- Chart.js Container -->
+          <div class="relative w-full h-[290px] bg-space-950 rounded-xl p-2 border border-gray-800">
+            <canvas id="phaseSpaceChart"></canvas>
+          </div>
+
+          <div class="mt-2 text-[11px] text-gray-400 flex items-center justify-between border-t border-gray-800/60 pt-2 font-mono">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> Nominal Adsorption Corridor</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Sublimation Freeze Zone</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Secondary Telemetry Plots & Dynamic Controls -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Controls & Fault Injections (4 cols) -->
+        <div class="lg:col-span-4 glass-panel p-5 rounded-2xl border border-gray-800 space-y-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+              <h3 class="text-sm font-bold text-white font-mono uppercase">ISRU Cryo-Pump Actuators</h3>
+            </div>
+            <span class="text-[10px] bg-gray-800 text-gray-300 px-2 py-0.5 rounded font-mono">CLOSED LOOP</span>
+          </div>
+
+          <!-- Slider 1: Atmospheric Suction Speed -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-300">Roots Vacuum Blower Speed</span>
+              <span id="labelFanRPM" class="text-cyan-400 font-semibold">1,240 RPM</span>
+            </div>
+            <input id="sliderFanRPM" type="range" min="300" max="3200" step="50" value="1240" oninput="updateActuatorControls()" class="w-full accent-cyan-500 bg-gray-800 rounded-lg h-2 cursor-pointer">
+            <div class="flex justify-between text-[10px] text-gray-500">
+              <span>300 (Trickle)</span>
+              <span>1800 (Nominal)</span>
+              <span>3200 (Overdrive)</span>
+            </div>
+          </div>
+
+          <!-- Slider 2: Thermal Band Heater Power -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-300">Auxiliary Thermal Band Heater</span>
+              <span id="labelHeaterW" class="text-amber-400 font-semibold">18 W</span>
+            </div>
+            <input id="sliderHeaterW" type="range" min="0" max="150" step="1" value="18" oninput="updateActuatorControls()" class="w-full accent-amber-500 bg-gray-800 rounded-lg h-2 cursor-pointer">
+            <div class="flex justify-between text-[10px] text-gray-500">
+              <span>0 W (Passive Cryo)</span>
+              <span>60 W (Hold)</span>
+              <span>150 W (Rapid Defrost)</span>
+            </div>
+          </div>
+
+          <!-- Slider 3: Martian Ambient Temperature -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-300">Mars Ambient Diurnal Temp ($T_\infty$)</span>
+              <span id="labelAmbTemp" class="text-rose-400 font-semibold">190 K (-83°C)</span>
+            </div>
+            <input id="sliderAmbTemp" type="range" min="140" max="240" step="1" value="190" oninput="updateActuatorControls()" class="w-full accent-rose-500 bg-gray-800 rounded-lg h-2 cursor-pointer">
+            <div class="flex justify-between text-[10px] text-gray-500">
+              <span>140 K (Polar Night)</span>
+              <span>190 K (Equatorial Mean)</span>
+              <span>240 K (Summer Noon)</span>
+            </div>
+          </div>
+
+          <!-- Fault Injection Suite -->
+          <div class="pt-3 border-t border-gray-800">
+            <div class="text-xs font-bold uppercase font-mono text-gray-400 mb-2 flex items-center gap-1.5">
+              <i data-lucide="zap-off" class="w-3.5 h-3.5 text-rose-400"></i>
+              <span>Hardware Anomaly Injections</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="injectFault('intake_clog')" class="px-2.5 py-2 text-xs font-medium rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 text-rose-300 transition text-left">
+                <div class="font-bold text-[11px]">Dust Clog / Choke</div>
+                <div class="text-[10px] text-gray-400">Drop $\dot{m}$ suddenly</div>
+              </button>
+              <button onclick="injectFault('sublimation_plunge')" class="px-2.5 py-2 text-xs font-medium rounded-lg bg-blue-950/40 hover:bg-blue-900/60 border border-blue-800/40 text-cyan-300 transition text-left">
+                <div class="font-bold text-[11px]">Polar Night Plunge</div>
+                <div class="text-[10px] text-gray-400">Flash freeze $T < 145\,\text{K}$</div>
+              </button>
+              <button onclick="injectFault('exotherm_runaway')" class="px-2.5 py-2 text-xs font-medium rounded-lg bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/40 text-amber-300 transition text-left">
+                <div class="font-bold text-[11px]">Thermal Runaway</div>
+                <div class="text-[10px] text-gray-400">Desorb spike $T > 290\,\text{K}$</div>
+              </button>
+              <button onclick="injectFault('valve_stall')" class="px-2.5 py-2 text-xs font-medium rounded-lg bg-violet-950/40 hover:bg-violet-900/60 border border-violet-800/40 text-violet-300 transition text-left">
+                <div class="font-bold text-[11px]">Check-Valve Stall</div>
+                <div class="text-[10px] text-gray-400">Cyclic pressure bounce</div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry Chart 1: Mass Flow & Chamber Pressure (4 cols) -->
+        <div class="lg:col-span-4 glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="gauge" class="w-4 h-4 text-cyan-400"></i>
+              <h3 class="text-sm font-bold text-white font-mono uppercase">Mass Flux & Sorption Load</h3>
+            </div>
+            <span class="text-[10px] font-mono text-cyan-400">g/s & Loading %</span>
+          </div>
+          <div class="relative w-full h-[220px] bg-space-950 rounded-xl p-2 border border-gray-800">
+            <canvas id="massFlowChart"></canvas>
+          </div>
+          <div class="mt-2 text-[11px] text-gray-400 flex items-center justify-between font-mono">
+            <span>Sorption Sieve Saturation: <strong id="valSatLoad" class="text-cyan-300">41.8%</strong></span>
+            <span>Purge Frequency: <strong class="text-gray-300">1.2 h/cycle</strong></span>
+          </div>
+        </div>
+
+        <!-- Telemetry Chart 2: Thermal Kinetics & Auxiliary Heater Response (4 cols) -->
+        <div class="lg:col-span-4 glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <i data-lucide="thermometer-snowflake" class="w-4 h-4 text-rose-400"></i>
+              <h3 class="text-sm font-bold text-white font-mono uppercase">Thermal Gradient & Heater Band</h3>
+            </div>
+            <span class="text-[10px] font-mono text-rose-400">Kelvin (K) & Watts</span>
+          </div>
+          <div class="relative w-full h-[220px] bg-space-950 rounded-xl p-2 border border-gray-800">
+            <canvas id="thermalChart"></canvas>
+          </div>
+          <div class="mt-2 text-[11px] text-gray-400 flex items-center justify-between font-mono">
+            <span>Sublimation Safety Margin: <strong id="valSafetyMargin" class="text-emerald-400">+29.5 K</strong></span>
+            <span>COP Efficiency: <strong class="text-gray-300">4.12</strong></span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL (#viewPhysics)                   -->
+    <!-- ========================================================================= -->
+    <div id="viewPhysics" class="hidden space-y-6">
+      
+      <!-- Physics Header Banner -->
+      <div class="glass-panel p-6 rounded-2xl border border-gray-800">
+        <div class="flex items-center gap-3">
+          <div class="p-3 rounded-xl bg-violet-950/80 border border-violet-800/40 text-violet-400">
+            <i data-lucide="binary" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-white">Mathematical Modeling of Martian Atmospheric $\text{CO}_2$ Cryo-Sorption</h2>
+            <p class="text-xs text-gray-400 mt-1">
+              Coupled non-equilibrium thermodynamics governing gas-solid adsorption kinetics, Langmuir-Freundlich multi-site isotherms, and non-isothermal freeze limits inside nanoporous Zeolite 13X.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Technical Formulation Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Card 1: Governing Conservation & Energy Balance -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-gray-800 pb-2 mb-3">
+              <span class="text-xs font-mono font-bold text-cyan-400 uppercase">01. Coupled Energy & Mass Balance</span>
+              <span class="text-[10px] bg-cyan-950 border border-cyan-800 text-cyan-300 px-2 py-0.5 rounded">Navier-Stokes / Heat</span>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed mb-3">
+              The continuous sorption of low-pressure ($6\text{–}10\,\text{mbar}$) Martian atmosphere across a fixed bed packed with synthetic zeolite pellets is governed by coupled 1D axial dispersion and non-isothermal enthalpy conservation:
+            </p>
+
+            <div class="formula-box p-3 rounded-lg text-center text-cyan-300 text-sm overflow-x-auto my-2">
+              $$\rho_g \epsilon_b C_p \frac{\partial T}{\partial t} + \dot{m} C_p \frac{\partial T}{\partial z} = k_{\text{eff}} \frac{\partial^2 T}{\partial z^2} + (1-\epsilon_b)\rho_s \Delta H_{\text{ads}} \frac{\partial q}{\partial t} - \frac{4 U}{D_i}(T - T_{\text{wall}})$$
+            </div>
+
+            <p class="text-[11px] text-gray-400 mt-2">
+              Where $\epsilon_b$ is the interstitial void fraction, $\Delta H_{\text{ads}}$ is the exothermic isosteric heat of adsorption ($\sim 36.4\,\text{kJ/mol}$ for $\text{CO}_2$ on Zeolite 13X), $q$ is specific loading, and $U$ represents overall duct thermal conductance.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800/80 text-[11px] font-mono text-gray-400">
+            Boundary Condition: $T(0, t) = T_{\text{ambient}}$, with heat dissipation dominated by radiative Martian background $Q_{\text{rad}} = \epsilon \sigma (T_{\text{duct}}^4 - T_{\text{sky}}^4)$.
+          </div>
+        </div>
+
+        <!-- Card 2: Microscopic Langmuir-Freundlich Adsorption Kinetics -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-gray-800 pb-2 mb-3">
+              <span class="text-xs font-mono font-bold text-violet-400 uppercase">02. Microscopic Sorption & Freeze Limits</span>
+              <span class="text-[10px] bg-violet-950 border border-violet-800 text-violet-300 px-2 py-0.5 rounded">Sips Isotherm</span>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed mb-3">
+              Adsorption capacity is quantified using the temperature-dependent dual-site Sips isotherm, bounded by the Clausius-Clapeyron dry-ice solid-vapor sublimation phase transition boundary:
+            </p>
+
+            <div class="formula-box p-3 rounded-lg text-center text-violet-300 text-sm overflow-x-auto my-2">
+              $$q^*(P, T) = q_m \frac{\left(b_0 \exp\left[\frac{-\Delta H_{\text{ads}}}{R T}\right] P_{\text{CO}_2}\right)^{1/n}}{1 + \left(b_0 \exp\left[\frac{-\Delta H_{\text{ads}}}{R T}\right] P_{\text{CO}_2}\right)^{1/n}}, \quad P_{\text{sub}}(T) = P_0 \exp\left[\frac{-\Delta H_{\text{sub}}}{R}\left(\frac{1}{T} - \frac{1}{T_0}\right)\right]$$
+            </div>
+
+            <p class="text-[11px] text-gray-400 mt-2">
+              If local micro-channel vapor pressure $P_{\text{CO}_2}$ exceeds $P_{\text{sub}}(T)$ when $T < 149.2\,\text{K}$, instantaneous desublimation (phase transformation from gas directly to crystalline solid dry-ice) occurs, obstructing the $0.9\,\text{nm}$ cage apertures of the faujasite lattice.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800/80 text-[11px] font-mono text-gray-400">
+            Critical Threshold: $\Delta T_{\text{sub}} = T_{\text{bed}} - T_{\text{frost}} \ge 12.5\,\text{K}$ required to guarantee anti-clogging margin.
+          </div>
+        </div>
+
+        <!-- Card 3: Real-Time State Observer & Inverse Trajectory Auditor -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-gray-800 pb-2 mb-3">
+              <span class="text-xs font-mono font-bold text-amber-400 uppercase">03. InSituSieve State Observer Inversion</span>
+              <span class="text-[10px] bg-amber-950 border border-amber-800 text-amber-300 px-2 py-0.5 rounded">Nonlinear EKF</span>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed mb-3">
+              Because embedded micro-thermocouples cannot penetrate the dense zeolite core without inducing seal failure, the auditor executes a continuous 10 Hz Extended Kalman Filter observing the $(\dot{m}, T)$ phase gradient:
+            </p>
+
+            <div class="formula-box p-3 rounded-lg text-center text-amber-300 text-sm overflow-x-auto my-2">
+              $$\mathcal{H}_{\text{freeze}}(\dot{m}, T) = \frac{\nabla \dot{m}}{\dot{m}_{\text{nom}}} \cdot \text{sign}\left(\frac{\partial T}{\partial t}\right) + \kappa \cdot \max\left(0, \frac{T_{\text{sublimation}} - T}{\sigma_T}\right)$$
+            </div>
+
+            <p class="text-[11px] text-gray-400 mt-2">
+              When $\mathcal{H}_{\text{freeze}} > 1.0$, the software classifies the condition not as a nominal cold night inlet drop, but as an impending duct freeze-off. The control matrix commands a preemptive dual-actuator response: slowing intake fan suction to increase resident gas dwell time while triggering auxiliary heater bands.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800/80 text-[11px] font-mono text-gray-400">
+            Convergence Rate: Sub-50 millisecond state classification with 99.98% certainty against false desorb triggers.
+          </div>
+        </div>
+
+        <!-- Card 4: Micro-Fabrication, Substrates, and Sensor Hardware Specs -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between border-b border-gray-800 pb-2 mb-3">
+              <span class="text-xs font-mono font-bold text-rose-400 uppercase">04. Flight Hardware & Substrate Matrix</span>
+              <span class="text-[10px] bg-rose-950 border border-rose-800 text-rose-300 px-2 py-0.5 rounded">TRL-6 Target</span>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed mb-3">
+              Designed to endure 500+ Martian diurnal thermal cycles ($-120^\circ\text{C}$ to $+200^\circ\text{C}$ regeneration bakeouts) without material micro-fracturing or pneumatic dusting:
+            </p>
+
+            <div class="formula-box p-3 rounded-lg text-center text-rose-300 text-sm overflow-x-auto my-2">
+              $$\sigma_{\text{hoop}} = \frac{P_{\text{desorb}} \cdot r_{\text{vessel}}}{t_{\text{Ti}-6\text{Al}-4\text{V}}} \le \frac{F_{\text{yield}}}{\text{SF}_{1.4}}, \quad \text{Mass Target} \le 18.5\,\text{kg per bed}$$
+            </div>
+
+            <p class="text-[11px] text-gray-400 mt-2">
+              <strong>Substrate:</strong> Additively manufactured Titanium Gr-5 with internal conformal gyroid fluid channels. Sieve media: Bounded spherical $1.6\text{–}2.5\,\text{mm}$ Zeolite 13X beads with macropore silanization to eliminate martian perchlorate poisoning.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800/80 text-[11px] font-mono text-gray-400">
+            Sensors: Dual MEMS differential silicon micro-piezoresistive pressure arrays and radiation-hardened platinum RTDs (PT1000).
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: $225,000 NASA SBIR/STTR PROPOSAL & HARDWARE TRANSITION (#viewProposal) -->
+    <!-- ========================================================================= -->
+    <div id="viewProposal" class="hidden space-y-6">
+      
+      <!-- Proposal Master Banner -->
+      <div class="glass-panel p-6 rounded-2xl border border-cyan-800/40 bg-gradient-to-r from-space-900 via-space-900 to-cyan-950/30">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2 text-cyan-400 font-mono text-xs uppercase font-bold tracking-wider">
+              <i data-lucide="award" class="w-4 h-4"></i>
+              <span>NASA SBIR/STTR FY2026 Phase I Research Plan</span>
+            </div>
+            <h2 class="text-xl font-bold text-white mt-1">Autonomous Cryo-Sorption Management for Mars In-Situ Methane Production</h2>
+            <p class="text-xs text-gray-300 mt-1 max-w-3xl">
+              Topic TX06.01: Surface Propellant Production and Storage. Enabling uncrewed autonomous acquisition of $24\,\text{kg/day}$ of high-purity $\text{CO}_2$ feedstock for the Sabatier Methanation Plant supporting Mars Sample Return (MSR) and Crewed Mars Landers.
+            </p>
+          </div>
+          <div class="text-right shrink-0">
+            <div class="text-2xl font-black text-white font-mono">$225,000</div>
+            <div class="text-xs text-cyan-400 font-mono">Phase I STTR Allocation (6 Months)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Partner Breakdown & Funding Allocation -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Budget Slice 1: Prime Contractor -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-mono font-bold text-cyan-400 uppercase">Prime Innovator Allocation</span>
+            <span class="text-xs font-mono text-white bg-cyan-950 px-2 py-0.5 rounded border border-cyan-800">70.0% ($157,500)</span>
+          </div>
+          <h4 class="text-sm font-bold text-white mb-2">RF WaveCode DeepTech Systems</h4>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            Lead system engineering, digital-twin software development, 10 Hz Extended Kalman Filter implementation, and control-law embedded firmware synthesis for real-time radiation-tolerant FPGA target deployment.
+          </p>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-400">
+            Deliverable: Certified InSituSieve v1.0 RTOS Control Binary.
+          </div>
+        </div>
+
+        <!-- Budget Slice 2: University Research Partner -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-mono font-bold text-violet-400 uppercase">University Partner (STTR)</span>
+            <span class="text-xs font-mono text-white bg-violet-950 px-2 py-0.5 rounded border border-violet-800">30.0% ($67,500)</span>
+          </div>
+          <h4 class="text-sm font-bold text-white mb-2">University of Central Florida (UCF) CATER Labs</h4>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            Center for Advanced Turbomachinery and Energy Research (CATER). Subcontract task: Martian environmental chamber vacuum testing, cryogenic zeolite 13X breakthrough curve empirical validation, and sub-ambient dry-ice frost boundary mapping.
+          </p>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-400">
+            PI: Cryogenic Multiphase Heat Transfer Laboratory, UCF.
+          </div>
+        </div>
+
+        <!-- Budget Slice 3: Direct Mission Transition Target -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-mono font-bold text-emerald-400 uppercase">Target NASA Customer</span>
+            <span class="text-xs font-mono text-white bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">NASA JSC / GRC / KSC</span>
+          </div>
+          <h4 class="text-sm font-bold text-white mb-2">ISRU Technology Maturation Office</h4>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            Direct insertion into the Mars Ascent Vehicle (MAV) propellant loading stack. Mitigates mechanical compressor vibration, eliminating multi-stage Roots pump lubrication breakdown in abrasive high-dust Martian ambient environments.
+          </p>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-gray-400">
+            Alignment: Moon-to-Mars Architecture Directive TX06.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 6-Month Phase I Work Breakdown Schedule -->
+      <div class="glass-panel p-5 rounded-2xl border border-gray-800 space-y-4">
+        <h3 class="text-sm font-bold text-white uppercase font-mono flex items-center gap-2">
+          <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
+          <span>Phase I Milestone & Technical Work Breakdown (Months 1 – 6)</span>
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          
+          <div class="p-4 rounded-xl bg-space-900 border border-gray-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between text-xs font-mono text-cyan-400 mb-2">
+                <span>MONTHS 1–2</span>
+                <span class="px-1.5 py-0.5 rounded bg-cyan-950 text-[10px]">MILESTONE 1</span>
+              </div>
+              <h5 class="text-xs font-bold text-white">Kinetic Model & Sips Parameterization</h5>
+              <p class="text-[11px] text-gray-400 mt-2">
+                Synthesize dual-site Sips isotherm coefficients using pure $\text{CO}_2$ and simulated $95.3\% \text{CO}_2, 2.6\% \text{N}_2, 1.9\% \text{Ar}$ Mars atmosphere across $130\,\text{K}\text{–}300\,\text{K}$.
+              </p>
+            </div>
+            <div class="text-[10px] text-cyan-300 mt-3 font-mono">Deliverable: Kinetic Model Tech Note</div>
+          </div>
+
+          <div class="p-4 rounded-xl bg-space-900 border border-gray-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between text-xs font-mono text-violet-400 mb-2">
+                <span>MONTHS 3–4</span>
+                <span class="px-1.5 py-0.5 rounded bg-violet-950 text-[10px]">MILESTONE 2</span>
+              </div>
+              <h5 class="text-xs font-bold text-white">State Observer Inversion Algorithm</h5>
+              <p class="text-[11px] text-gray-400 mt-2">
+                Develop 10 Hz Extended Kalman Filter observing $(\dot{m}, T)$ trajectory. Validate against synthetic noise and sudden intake fan restriction in digital twin hardware-in-the-loop (HIL).
+              </p>
+            </div>
+            <div class="text-[10px] text-violet-300 mt-3 font-mono">Deliverable: EKF C++ Codebase & HIL Harness</div>
+          </div>
+
+          <div class="p-4 rounded-xl bg-space-900 border border-gray-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between text-xs font-mono text-amber-400 mb-2">
+                <span>MONTH 5</span>
+                <span class="px-1.5 py-0.5 rounded bg-amber-950 text-[10px]">MILESTONE 3</span>
+              </div>
+              <h5 class="text-xs font-bold text-white">UCF CATER Chamber Empirical Runs</h5>
+              <p class="text-[11px] text-gray-400 mt-2">
+                Execute sub-scale 100-gram Zeolite 13X bed runs in UCF vacuum cryo-rig under 6 mbar partial pressure. Induce intentional dry-ice choke states; measure auditor recovery response.
+              </p>
+            </div>
+            <div class="text-[10px] text-amber-300 mt-3 font-mono">Deliverable: Empirical Validation Dataset</div>
+          </div>
+
+          <div class="p-4 rounded-xl bg-space-900 border border-gray-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between text-xs font-mono text-emerald-400 mb-2">
+                <span>MONTH 6</span>
+                <span class="px-1.5 py-0.5 rounded bg-emerald-950 text-[10px]">MILESTONE 4</span>
+              </div>
+              <h5 class="text-xs font-bold text-white">Phase II Transition Blueprint</h5>
+              <p class="text-[11px] text-gray-400 mt-2">
+                Complete engineering drawings for full-scale $24\,\text{kg/day}$ dual-bed swing adsorption prototype with internal additive thermal management channels ready for Phase II testing.
+              </p>
+            </div>
+            <div class="text-[10px] text-emerald-300 mt-3 font-mono">Deliverable: Final Report & Phase II Proposal</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Phase II Scale-Up Pipeline -->
+      <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <span class="text-xs font-mono text-rose-400 font-bold uppercase">Phase II Fast-Track Pipeline ($1.15M Allocation)</span>
+          <h4 class="text-sm font-bold text-white mt-1">Full-Scale Dual-Bed Cyclic Vacuum Rig in UCF Planetary Sim Chamber</h4>
+          <p class="text-xs text-gray-300 mt-1 max-w-2xl">
+            Transitioning from TRL-3 to TRL-6 through continuous 72-hour autonomous Mars diurnal cycle operations. Zero human intervention during simulated severe dust storm intake conditions.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <a href="mailto:support@rfwavecode.com?subject=InSituSieve%20NASA%20Phase%20I%20Briefing" class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-xs font-bold uppercase tracking-wider shadow-lg shadow-cyan-600/30 transition flex items-center gap-2">
+            <i data-lucide="mail" class="w-3.5 h-3.5"></i>
+            <span>Request Program Brief</span>
+          </a>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR BREAKDOWN (#viewARR)                    -->
+    <!-- ========================================================================= -->
+    <div id="viewARR" class="hidden space-y-6">
+      
+      <!-- ARR Master Valuation Banner -->
+      <div class="glass-panel p-6 rounded-2xl border border-emerald-800/40 bg-gradient-to-r from-space-900 via-space-900 to-emerald-950/30 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <div class="flex items-center gap-2 text-emerald-400 font-mono text-xs uppercase font-bold tracking-wider">
+            <i data-lucide="badge-dollar-sign" class="w-4 h-4"></i>
+            <span>Civil & Commercial Software Monetization</span>
+          </div>
+          <h2 class="text-xl font-bold text-white mt-1">Nationwide Civil Adsorption Monitoring Infrastructure</h2>
+          <p class="text-xs text-gray-300 mt-1 max-w-2xl">
+            Dual-use transfer of aerospace cryo-sorption phase auditor algorithms into industrial carbon capture (DAC), LNG cryo-purification, semiconductor ultra-pure vacuum plants, and medical oxygen sieves.
+          </p>
+        </div>
+        <div class="text-right">
+          <div class="text-3xl font-black text-emerald-400 font-mono">$214.2M</div>
+          <div class="text-xs text-gray-300 font-mono">Mature Civil ARR Nationwide</div>
+          <div class="text-[11px] text-cyan-400 mt-1">Enterprise Valuation (10x Multiple): <strong>$2.14B</strong></div>
+        </div>
+      </div>
+
+      <!-- ARR Distribution Table -->
+      <div class="glass-panel rounded-2xl border border-gray-800 overflow-hidden">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+          <h3 class="text-xs font-bold uppercase font-mono text-white flex items-center gap-2">
+            <i data-lucide="table" class="w-4 h-4 text-cyan-400"></i>
+            <span>Commercial Market Sizing & Annual Recurring Revenue Breakdown</span>
+          </h3>
+          <span class="text-[10px] text-gray-400 font-mono">100% Non-Defense Civil Applications</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs font-mono">
+            <thead class="bg-space-950/80 text-gray-400 uppercase text-[10px] border-b border-gray-800">
+              <tr>
+                <th class="p-3.5">Commercial Market Vertical</th>
+                <th class="p-3.5">Target Civil Deployment</th>
+                <th class="p-3.5">Software Pricing Model</th>
+                <th class="p-3.5">Nationwide Asset Base</th>
+                <th class="p-3.5 text-right text-emerald-400">Mature ARR ($M)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800/60 text-gray-300">
+              <tr class="hover:bg-space-900/50 transition">
+                <td class="p-3.5 font-bold text-white flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                  Direct Air Carbon Capture (DAC)
+                </td>
+                <td class="p-3.5">Solid Sorbent Cyclic Vacuum CO₂ Desorbers</td>
+                <td class="p-3.5 text-cyan-300">$18,500 / plant / yr</td>
+                <td class="p-3.5">4,200 Industrial DAC modules</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$77.7M</td>
+              </tr>
+              <tr class="hover:bg-space-900/50 transition">
+                <td class="p-3.5 font-bold text-white flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+                  LNG & Clean Cryogenic Refining
+                </td>
+                <td class="p-3.5">Molecular Sieve Dehydration & Heavy HC Scrubbers</td>
+                <td class="p-3.5 text-violet-300">$42,000 / facility / yr</td>
+                <td class="p-3.5">1,150 Liquefaction trains</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$48.3M</td>
+              </tr>
+              <tr class="hover:bg-space-900/50 transition">
+                <td class="p-3.5 font-bold text-white flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                  Semiconductor EUV Vacuum Forelines
+                </td>
+                <td class="p-3.5">Cryo-condensing Sorption Roughing Pumps</td>
+                <td class="p-3.5 text-amber-300">$12,000 / litho scanner / yr</td>
+                <td class="p-3.5">3,200 Advanced EUV tool suites</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$38.4M</td>
+              </tr>
+              <tr class="hover:bg-space-900/50 transition">
+                <td class="p-3.5 font-bold text-white flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                  Commercial Lunar & Orbital Propellant
+                </td>
+                <td class="p-3.5">Artemis CLPS & Commercial Space Station CFM</td>
+                <td class="p-3.5 text-rose-300">$125,000 / vehicle license</td>
+                <td class="p-3.5">190 Commercial orbiters & landers</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$23.8M</td>
+              </tr>
+              <tr class="hover:bg-space-900/50 transition">
+                <td class="p-3.5 font-bold text-white flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  Hospital Medical Oxygen VSA Beds
+                </td>
+                <td class="p-3.5">Autonomous Vacuum-Swing Zeolite Oxygen Concentrators</td>
+                <td class="p-3.5 text-emerald-300">$3,200 / central unit / yr</td>
+                <td class="p-3.5">8,100 Regional medical centers</td>
+                <td class="p-3.5 text-right font-bold text-emerald-400">$26.0M</td>
+              </tr>
+              <tr class="bg-space-950 font-bold border-t border-gray-700">
+                <td class="p-3.5 text-white" colspan="4">TOTAL PROJECTED NATIONWIDE RUNTIME SOFTWARE ARR:</td>
+                <td class="p-3.5 text-right text-emerald-400 text-sm">$214.2M</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5 Vertical Deep-Dive Cards (The Physics & Plain English for Executives) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        <!-- Card 1: Direct Air Capture -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i data-lucide="wind" class="w-4 h-4 text-cyan-400"></i>
+              <h4 class="text-sm font-bold text-white">Direct Air Capture (DAC) Facilities</h4>
+            </div>
+            <div class="text-[11px] text-cyan-300 bg-cyan-950/40 p-2.5 rounded-lg border border-cyan-800/40 mb-3 font-mono">
+              <strong>The Physics in 1 Sentence:</strong> Desorption steam condensation triggers rapid moisture displacement that drops local sorbent temperatures below dew point, causing cyclic matrix collapse.
+            </div>
+            <div class="text-xs text-gray-300 leading-relaxed">
+              <strong>Why Legacy Operators Missed This:</strong> Incumbent plant operators rely on fixed timers for desorber steam flushes. They burn millions in wasted boiler fuel and regularly flood zeolite beds because they cannot observe the instantaneous $(\dot{m}, T)$ enthalpy balance in real time.
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-cyan-400">
+            ARR Contribution: $77.7M (36.3% of Portfolio)
+          </div>
+        </div>
+
+        <!-- Card 2: LNG & Cryo Liquefaction -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i data-lucide="fuel" class="w-4 h-4 text-violet-400"></i>
+              <h4 class="text-sm font-bold text-white">LNG Cryogenic Refining Trains</h4>
+            </div>
+            <div class="text-[11px] text-violet-300 bg-violet-950/40 p-2.5 rounded-lg border border-violet-800/40 mb-3 font-mono">
+              <strong>The Physics in 1 Sentence:</strong> Trace $CO_2$ slipping past dehydration molecular sieves crystallizes at $110\,\text{K}$ inside main plate-fin heat exchangers, creating destructive plant shutdowns.
+            </div>
+            <div class="text-xs text-gray-300 leading-relaxed">
+              <strong>Why Legacy Operators Missed This:</strong> Standard gas chromatography takes 15 minutes to register slip; InSituSieve's state observer detects micro-breakthrough within 50 milliseconds via sorption temperature gradients.
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-violet-400">
+            ARR Contribution: $48.3M (22.5% of Portfolio)
+          </div>
+        </div>
+
+        <!-- Card 3: Semiconductor EUV Lithography -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i data-lucide="cpu" class="w-4 h-4 text-amber-400"></i>
+              <h4 class="text-sm font-bold text-white">Semiconductor EUV Clean Vacuums</h4>
+            </div>
+            <div class="text-[11px] text-amber-300 bg-amber-950/40 p-2.5 rounded-lg border border-amber-800/40 mb-3 font-mono">
+              <strong>The Physics in 1 Sentence:</strong> Hydrogen debris mitigation in extreme ultraviolet scanners requires cryogenic sorption pumps that freeze under unmonitored mass slug inflows.
+            </div>
+            <div class="text-xs text-gray-300 leading-relaxed">
+              <strong>Why Legacy Operators Missed This:</strong> Fab engineers run cryo-pumps until mechanical vibration alarms trip, wasting expensive production wafer batches instead of anticipating cryo-saturation.
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-amber-400">
+            ARR Contribution: $38.4M (17.9% of Portfolio)
+          </div>
+        </div>
+
+        <!-- Card 4: Commercial Space Stations & CFM -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i data-lucide="orbit" class="w-4 h-4 text-rose-400"></i>
+              <h4 class="text-sm font-bold text-white">Commercial Orbiters & Lunar Depots</h4>
+            </div>
+            <div class="text-[11px] text-rose-300 bg-rose-950/40 p-2.5 rounded-lg border border-rose-800/40 mb-3 font-mono">
+              <strong>The Physics in 1 Sentence:</strong> Cryogenic boil-off capture requires zero-boil-off (ZBO) compressor sieves that freeze during deep eclipse thermal transitions.
+            </div>
+            <div class="text-xs text-gray-300 leading-relaxed">
+              <strong>Why Legacy Operators Missed This:</strong> Legacy spacecraft vented boil-off gas overboard as lost mass because active mechanical compression was considered too heavy and failure-prone without adaptive thermal control.
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-rose-400">
+            ARR Contribution: $23.8M (11.1% of Portfolio)
+          </div>
+        </div>
+
+        <!-- Card 5: Hospital Oxygen Concentrators -->
+        <div class="glass-panel p-5 rounded-2xl border border-gray-800 flex flex-col justify-between md:col-span-2 lg:col-span-1">
+          <div>
+            <div class="flex items-center gap-2 mb-2">
+              <i data-lucide="heart-pulse" class="w-4 h-4 text-emerald-400"></i>
+              <h4 class="text-sm font-bold text-white">Hospital Medical Oxygen VSA Beds</h4>
+            </div>
+            <div class="text-[11px] text-emerald-300 bg-emerald-950/40 p-2.5 rounded-lg border border-emerald-800/40 mb-3 font-mono">
+              <strong>The Physics in 1 Sentence:</strong> Ambient air nitrogen adsorption on lithium-X zeolite releases heat during high patient demand surges that decays separation purity below 93%.
+            </div>
+            <div class="text-xs text-gray-300 leading-relaxed">
+              <strong>Why Legacy Operators Missed This:</strong> Hospital facility managers only swap molecular sieve beds after medical purity alarms sound, risking lives and incurring emergency maintenance surcharges.
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800 text-[11px] font-mono text-emerald-400">
+            ARR Contribution: $26.0M (12.2% of Portfolio)
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Executive Callout & Collaboration CTA -->
+      <div class="glass-panel p-6 rounded-2xl border border-gray-800 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div>
+          <span class="text-xs font-mono text-cyan-400 uppercase font-bold">Executive Value Proposition</span>
+          <h3 class="text-base font-bold text-white mt-1">
+            "InSituSieve eliminates catastrophic cryo-freeze downtime across critical civil gas infrastructure with zero moving sensor probes."
+          </h3>
+          <p class="text-xs text-gray-400 mt-1">
+            Pure-play runtime software architecture licensed per-ton processed or per-rack annual SaaS.
+          </p>
+        </div>
+        <div class="shrink-0 flex items-center gap-3">
+          <a href="mailto:support@rfwavecode.com" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-mono text-xs font-bold uppercase tracking-wider shadow-lg shadow-cyan-600/30 transition flex items-center gap-2">
+            <i data-lucide="send" class="w-4 h-4"></i>
+            <span>Contact Commercial Licensing</span>
+          </a>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="mt-auto border-t border-gray-800/80 bg-space-950/90 py-4 px-6 text-center text-xs text-gray-500 font-mono">
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-[1600px] mx-auto">
+      <div>InSituSieve™ // NASA SBIR TX06.01 Deep-Tech Architecture // STTR Academic Partner: UCF CATER Labs</div>
+      <div class="flex items-center gap-4">
+        <a href="mailto:support@rfwavecode.com" class="text-cyan-400 hover:underline">support@rfwavecode.com</a>
+        <span>•</span>
+        <span>TRL 3 $\to$ TRL 6 Transition</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT SIMULATION ENGINE & LOGIC                                      -->
+  <!-- ========================================================================= -->
+  <script>
+    // --- View State Mapping ---
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(activeKey) {
+      Object.keys(tabMapping).forEach(key => {
+        const item = tabMapping[key];
+        const viewEl = document.getElementById(item.viewId);
+        const btnEl = document.getElementById(item.btnId);
+        
+        if (key === activeKey) {
+          viewEl.classList.remove('hidden');
+          btnEl.className = "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-white bg-cyan-600/30 border border-cyan-500/40 shadow-sm transition";
+        } else {
+          viewEl.classList.add('hidden');
+          btnEl.className = "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-gray-400 hover:text-gray-200 transition";
+        }
+      });
+
+      // Rerender Lucide icons in case new elements became visible
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+
+      // Re-typeset MathJax formulas on tab change to ensure pristine LaTeX output
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().catch(err => console.debug('MathJax error:', err));
+      }
+
+      // Resize Canvas if returning to simulation
+      if (activeKey === 'sim') {
+        setTimeout(resizeCanvas, 50);
+      }
+    }
+
+    // --- Dynamic Physical State Object ---
+    const state = {
+      // Inputs
+      blowerRPM: 1240,
+      heaterWatts: 18,
+      ambientTemp: 190, // Kelvin
+      
+      // Dynamic Physical Variables
+      massFlow: 0.82,     // g/s
+      bedTemp: 178.5,     // K
+      frostRisk: 0.02,    // 0.0 to 1.0 (1.0 = full dry ice choking)
+      loadingPercent: 41.8,
+      exothermDeltaQ: 29.8, // Watts generated
+      cycleTime: 0,
+      regime: 'ADSORPTION',
+      
+      // Autonomous Supervisor
+      autoRecoverEnabled: true,
+      alarmState: 'NOMINAL', // 'NOMINAL', 'WARNING', 'CRITICAL_FREEZE', 'OVERHEAT'
+      
+      // Trajectory History for Chart (m_dot vs T)
+      trajectory: [],
+      maxTrajectoryPoints: 30
+    };
+
+    // Sublimation Freeze Critical Curve parameters: T_sublimation(P_martian)
+    // At ~6.1 mbar CO2, dry ice freezes below 149.2 K
+    const T_SUBLIMATION_LIMIT = 149.2; 
+
+    // --- Canvas & Rendering Pipeline ---
+    const canvas = document.getElementById('sorptionCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    const NUM_PARTICLES = 45;
+
+    function initParticles() {
+      particles = [];
+      for (let i = 0; i < NUM_PARTICLES; i++) {
+        particles.push({
+          x: Math.random() * 600,
+          y: 60 + Math.random() * 200,
+          vx: 1 + Math.random() * 2.5,
+          vy: (Math.random() - 0.5) * 0.8,
+          radius: 1.5 + Math.random() * 2,
+          state: 'gas', // 'gas', 'adsorbed', or 'frost'
+          life: Math.random() * 100
+        });
+      }
+    }
+
+    function resizeCanvas() {
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+      const dpr = window.devicePixelRatio || 1;
+      
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.resetTransform();
+      ctx.scale(dpr, dpr);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    // --- Chart.js Instances ---
+    let phaseSpaceChart = null;
+    let massFlowChart = null;
+    let thermalChart = null;
+
+    function initCharts() {
+      // 1. Phase-Space Scatter Trajectory Chart
+      const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+      
+      // Pre-compute nominal operating curve & hazard zone
+      const nominalCurve = [];
+      for (let m = 0.1; m <= 2.2; m += 0.1) {
+        // As mass flow increases, exothermic heat generation pushes temp up smoothly
+        const tNom = 155 + 28 * Math.sqrt(m);
+        nominalCurve.push({ x: m, y: tNom });
+      }
+
+      phaseSpaceChart = new Chart(ctxPhase, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Real-Time Trajectory (ṁ, T)',
+              data: [],
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.4)',
+              showLine: true,
+              borderWidth: 2,
+              pointRadius: (ctx) => {
+                const count = ctx.chart.data.datasets[0].data.length;
+                return ctx.dataIndex === count - 1 ? 7 : 3;
+              },
+              pointBackgroundColor: (ctx) => {
+                const count = ctx.chart.data.datasets[0].data.length;
+                return ctx.dataIndex === count - 1 ? '#f43f5e' : '#06b6d4';
+              },
+              order: 1
+            },
+            {
+              label: 'Nominal Adsorption Corridor',
+              data: nominalCurve,
+              borderColor: 'rgba(16, 185, 129, 0.6)',
+              borderDash: [4, 4],
+              borderWidth: 1.5,
+              showLine: true,
+              pointRadius: 0,
+              fill: false,
+              order: 3
+            },
+            {
+              label: 'Sublimation Freeze Hazard Boundary (T < 149.2 K)',
+              data: [
+                { x: 0.0, y: 149.2 },
+                { x: 2.5, y: 149.2 }
+              ],
+              borderColor: 'rgba(244, 63, 94, 0.8)',
+              borderWidth: 2,
+              borderDash: [6, 4],
+              showLine: true,
+              pointRadius: 0,
+              fill: {
+                target: 'origin',
+                above: 'rgba(244, 63, 94, 0.12)'
+              },
+              order: 2
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              type: 'linear',
+              position: 'bottom',
+              title: {
+                display: true,
+                text: 'Mass Flow ṁ (g/s)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              min: 0.0,
+              max: 2.2,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Bed Temperature T (K)',
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 10 }
+              },
+              min: 130,
+              max: 230,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: {
+                boxWidth: 8,
+                color: '#94a3b8',
+                font: { family: 'JetBrains Mono', size: 9 }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `ṁ: ${ctx.parsed.x.toFixed(2)} g/s, T: ${ctx.parsed.y.toFixed(1)} K`
+              }
+            }
+          }
+        }
+      });
+
+      // 2. Mass Flow & Loading Time-Series Chart
+      const ctxMass = document.getElementById('massFlowChart').getContext('2d');
+      massFlowChart = new Chart(ctxMass, {
+        type: 'line',
+        data: {
+          labels: Array(25).fill(''),
+          datasets: [
+            {
+              label: 'Mass Flow ṁ (g/s)',
+              data: Array(25).fill(0.8),
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.1)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Sieve Bed Saturation (%)',
+              data: Array(25).fill(40),
+              borderColor: '#8b5cf6',
+              borderWidth: 1.5,
+              tension: 0.2,
+              fill: false,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: {
+              type: 'linear',
+              position: 'left',
+              min: 0,
+              max: 2.0,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#06b6d4', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y1: {
+              type: 'linear',
+              position: 'right',
+              min: 0,
+              max: 100,
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#8b5cf6', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { boxWidth: 8, color: '#94a3b8', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          }
+        }
+      });
+
+      // 3. Thermal & Heater Band Time-Series Chart
+      const ctxThermal = document.getElementById('thermalChart').getContext('2d');
+      thermalChart = new Chart(ctxThermal, {
+        type: 'line',
+        data: {
+          labels: Array(25).fill(''),
+          datasets: [
+            {
+              label: 'Bed Temp (K)',
+              data: Array(25).fill(178),
+              borderColor: '#f43f5e',
+              borderWidth: 2,
+              tension: 0.3,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Heater Band (W)',
+              data: Array(25).fill(18),
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              borderWidth: 1.5,
+              fill: true,
+              tension: 0.2,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: {
+              type: 'linear',
+              position: 'left',
+              min: 130,
+              max: 220,
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#f43f5e', font: { family: 'JetBrains Mono', size: 9 } }
+            },
+            y1: {
+              type: 'linear',
+              position: 'right',
+              min: 0,
+              max: 150,
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#f59e0b', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          },
+          plugins: {
+            legend: {
+              labels: { boxWidth: 8, color: '#94a3b8', font: { family: 'JetBrains Mono', size: 9 } }
+            }
+          }
+        }
+      });
+    }
+
+    // --- Simulation Step Physics Model ---
+    function stepSimulation() {
+      state.cycleTime += 0.05;
+
+      // 1. Calculate ideal mass flow from inlet vacuum blower RPM & frost clogging
+      const baseFlow = (state.blowerRPM / 1500) * 0.95; 
+      // Clogging penalty if frost is forming
+      const chokeFactor = Math.max(0.05, 1.0 - state.frostRisk * 0.9);
+      const targetMassFlow = baseFlow * chokeFactor;
+      
+      // Filtered transition towards target mass flow (fluid inertia)
+      state.massFlow += (targetMassFlow - state.massFlow) * 0.12;
+
+      // 2. Exothermic heat generation: proportional to mass flow adsorbed
+      // q_ads = m_dot * DeltaH_isosteric
+      state.exothermDeltaQ = state.massFlow * 36.4; 
+
+      // 3. Thermal Energy Balance
+      // dT/dt = (Q_exotherm + Q_heaters - Q_radiation_conduction_ambient) / C_bed
+      const heatLossToAmbient = 0.45 * (state.bedTemp - state.ambientTemp);
+      const netHeatRate = state.exothermDeltaQ + state.heaterWatts * 0.85 - heatLossToAmbient;
+      
+      // Bed thermal mass capacitance factor
+      state.bedTemp += (netHeatRate * 0.05) / 14.5;
+
+      // 4. Check for Sublimation Dry-Ice Solidification
+      if (state.bedTemp < T_SUBLIMATION_LIMIT) {
+        // Temperature dropped below dry-ice frost threshold!
+        const frostRate = (T_SUBLIMATION_LIMIT - state.bedTemp) * 0.015;
+        state.frostRisk = Math.min(1.0, state.frostRisk + frostRate);
+      } else {
+        // Sieve is warm enough to sublimate back or prevent solid formation
+        const thawRate = (state.bedTemp - T_SUBLIMATION_LIMIT) * 0.025;
+        state.frostRisk = Math.max(0.0, state.frostRisk - thawRate);
+      }
+
+      // 5. Zeolite Bed Saturation Loading
+      if (state.regime === 'ADSORPTION') {
+        state.loadingPercent += (state.massFlow * 0.035);
+        if (state.loadingPercent >= 92.0) {
+          // Trigger cycle change to DESORPTION / REGENERATION
+          state.regime = 'DESORPTION';
+        }
+      } else {
+        // Desorbing: purge loading back down
+        state.loadingPercent -= 0.15;
+        if (state.loadingPercent <= 12.0) {
+          state.regime = 'ADSORPTION';
+        }
+      }
+
+      // 6. Autonomous Observer & Closed-Loop Controller
+      if (state.autoRecoverEnabled) {
+        runAutonomousObserver();
+      }
+
+      // 7. Update Trajectory Buffer for Scatter Plot
+      state.trajectory.push({
+        x: parseFloat(state.massFlow.toFixed(3)),
+        y: parseFloat(state.bedTemp.toFixed(1))
+      });
+      if (state.trajectory.length > state.maxTrajectoryPoints) {
+        state.trajectory.shift();
+      }
+
+      // Update UI elements & badges
+      updateTelemetryDisplays();
+    }
+
+    // --- Autonomous Observer & Auto-Recovery Logic ---
+    function runAutonomousObserver() {
+      // Diagnostic rule:
+      // If mass flow drops below threshold while temp is within 6 K of sublimation or below it
+      const tempMargin = state.bedTemp - T_SUBLIMATION_LIMIT;
+
+      if (state.frostRisk > 0.45 || tempMargin < 4.0) {
+        // Impending or active freeze detected!
+        state.alarmState = 'CRITICAL_FREEZE';
+        
+        // Controller Intervention:
+        // 1. Ramp heater power proportional to threat
+        const requiredHeat = Math.min(150, 45 + (T_SUBLIMATION_LIMIT - state.bedTemp) * 4);
+        state.heaterWatts += (requiredHeat - state.heaterWatts) * 0.2;
+        document.getElementById('sliderHeaterW').value = Math.round(state.heaterWatts);
+        document.getElementById('labelHeaterW').textContent = `${Math.round(state.heaterWatts)} W`;
+
+        // 2. Adjust blower fan to increase dwell time and stop excessive cold gas intake
+        if (state.blowerRPM > 800) {
+          state.blowerRPM -= 20;
+          document.getElementById('sliderFanRPM').value = Math.round(state.blowerRPM);
+          document.getElementById('labelFanRPM').textContent = `${Math.round(state.blowerRPM)} RPM`;
+        }
+      } else if (state.bedTemp > 215) {
+        // Overheating caution: cut auxiliary heater to prevent premature desorb
+        state.alarmState = 'OVERHEAT';
+        if (state.heaterWatts > 5) {
+          state.heaterWatts -= 1.5;
+          document.getElementById('sliderHeaterW').value = Math.round(state.heaterWatts);
+          document.getElementById('labelHeaterW').textContent = `${Math.round(state.heaterWatts)} W`;
+        }
+      } else {
+        // Nominal Adsorption
+        state.alarmState = 'NOMINAL';
+        // Relax heater gently back to nominal cruise (~18 W) if not in fault
+        if (state.heaterWatts > 18) {
+          state.heaterWatts -= 0.5;
+          document.getElementById('sliderHeaterW').value = Math.round(state.heaterWatts);
+          document.getElementById('labelHeaterW').textContent = `${Math.round(state.heaterWatts)} W`;
+        }
+      }
+    }
+
+    // --- Update UI Telemetry & Badges ---
+    function updateTelemetryDisplays() {
+      document.getElementById('valMassFlow').textContent = `${state.massFlow.toFixed(2)} g/s`;
+      document.getElementById('valBedTemp').textContent = `${state.bedTemp.toFixed(1)} K`;
+      document.getElementById('valLatentHeat').textContent = `+${state.exothermDeltaQ.toFixed(1)} W`;
+      document.getElementById('valSatLoad').textContent = `${state.loadingPercent.toFixed(1)}%`;
+      
+      const margin = state.bedTemp - T_SUBLIMATION_LIMIT;
+      const marginEl = document.getElementById('valSafetyMargin');
+      marginEl.textContent = `${margin >= 0 ? '+' : ''}${margin.toFixed(1)} K`;
+      marginEl.className = margin < 5 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold';
+
+      document.getElementById('overlayInletSpeed').textContent = `${Math.round(state.blowerRPM)} RPM`;
+      document.getElementById('overlayHeaterDuty').textContent = `${state.heaterWatts.toFixed(1)} W`;
+      document.getElementById('overlayFrostMetric').textContent = `${(state.frostRisk * 100).toFixed(1)}%`;
+      document.getElementById('hudCycleRegime').textContent = state.regime;
+      
+      // Update Freeze Warning Banner
+      const freezeBanner = document.getElementById('freezeWarningBanner');
+      if (state.frostRisk > 0.45) {
+        freezeBanner.classList.remove('hidden');
+      } else {
+        freezeBanner.classList.add('hidden');
+      }
+
+      // Update Alarm Pill
+      const alarmPill = document.getElementById('liveAlarmPill');
+      const alarmText = document.getElementById('alarmStatusText');
+      if (state.alarmState === 'CRITICAL_FREEZE') {
+        alarmPill.className = "flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/50 text-rose-400 text-xs font-mono animate-pulse";
+        alarmText.textContent = "FREEZE CHOKE DETECTED";
+      } else if (state.alarmState === 'OVERHEAT') {
+        alarmPill.className = "flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-mono";
+        alarmText.textContent = "EXOTHERM ELEVATION";
+      } else {
+        alarmPill.className = "flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono";
+        alarmText.textContent = "NOMINAL ADSORB";
+      }
+    }
+
+    // --- Render Sieve Canvas Visualization ---
+    function renderCanvas() {
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+
+      // Background clear
+      ctx.fillStyle = '#03050a';
+      ctx.fillRect(0, 0, w, h);
+
+      // Draw Chamber Cylinder Enclosure
+      const bedX = w * 0.28;
+      const bedY = h * 0.16;
+      const bedW = w * 0.44;
+      const bedH = h * 0.68;
+
+      // Outer metallic wall
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(bedX, bedY, bedW, bedH);
+
+      // Intake Duct (Left)
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, bedY + bedH * 0.25);
+      ctx.lineTo(bedX, bedY + bedH * 0.25);
+      ctx.moveTo(0, bedY + bedH * 0.75);
+      ctx.lineTo(bedX, bedY + bedH * 0.75);
+      ctx.stroke();
+
+      // Exhaust / Compression Duct (Right)
+      ctx.beginPath();
+      ctx.moveTo(bedX + bedW, bedY + bedH * 0.35);
+      ctx.lineTo(w, bedY + bedH * 0.35);
+      ctx.moveTo(bedX + bedW, bedY + bedH * 0.65);
+      ctx.lineTo(w, bedY + bedH * 0.65);
+      ctx.stroke();
+
+      // Zeolite Bed Matrix Fill with Frost or Heat Tint
+      let bedGradient = ctx.createLinearGradient(bedX, bedY, bedX + bedW, bedY + bedH);
+      if (state.frostRisk > 0.3) {
+        // Frosty icy tint
+        bedGradient.addColorStop(0, 'rgba(147, 197, 253, 0.25)');
+        bedGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+        bedGradient.addColorStop(1, 'rgba(147, 197, 253, 0.25)');
+      } else {
+        // Exothermic warm glow
+        bedGradient.addColorStop(0, 'rgba(244, 63, 94, 0.12)');
+        bedGradient.addColorStop(0.5, 'rgba(245, 158, 11, 0.18)');
+        bedGradient.addColorStop(1, 'rgba(6, 182, 212, 0.12)');
+      }
+      ctx.fillStyle = bedGradient;
+      ctx.fillRect(bedX, bedY, bedW, bedH);
+
+      // Draw Zeolite 13X Micro-Pellets Lattice
+      const rows = 9;
+      const cols = 14;
+      const dx = bedW / (cols + 1);
+      const dy = bedH / (rows + 1);
+
+      for (let r = 1; r <= rows; r++) {
+        for (let c = 1; c <= cols; c++) {
+          const px = bedX + c * dx;
+          const py = bedY + r * dy;
+
+          ctx.beginPath();
+          ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+          
+          if (state.frostRisk > 0.4) {
+            // Dry ice crystals caking on pellets
+            ctx.fillStyle = '#e0f2fe';
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 6;
+          } else {
+            // Nominal porous zeolite bead
+            ctx.fillStyle = state.regime === 'ADSORPTION' ? '#0ea5e9' : '#f59e0b';
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+          }
+          ctx.fill();
+        }
+      }
+      ctx.shadowBlur = 0;
+
+      // Draw Auxiliary Heater Bands (Top and Bottom of Bed)
+      const heaterGlow = Math.min(1.0, state.heaterWatts / 60);
+      ctx.strokeStyle = `rgba(245, 158, 11, ${0.3 + heaterGlow * 0.7})`;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      // Top band
+      ctx.moveTo(bedX - 4, bedY - 5);
+      ctx.lineTo(bedX + bedW + 4, bedY - 5);
+      // Bottom band
+      ctx.moveTo(bedX - 4, bedY + bedH + 5);
+      ctx.lineTo(bedX + bedW + 4, bedY + bedH + 5);
+      ctx.stroke();
+
+      // Draw Rotating Suction Fan inside inlet (Left)
+      const fanX = bedX * 0.45;
+      const fanY = bedY + bedH * 0.5;
+      const fanAngle = state.cycleTime * (state.blowerRPM / 60) * 0.4;
+
+      ctx.save();
+      ctx.translate(fanX, fanY);
+      ctx.rotate(fanAngle);
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2.5;
+      for (let b = 0; b < 4; b++) {
+        ctx.rotate(Math.PI / 2);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(16, 0);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Draw Dynamic Atmospheric Gas / Dry-Ice Particles
+      particles.forEach(p => {
+        p.x += p.vx * (state.massFlow + 0.3);
+        p.y += p.vy;
+
+        // Particle cycle
+        if (p.x > w) {
+          p.x = 0;
+          p.y = bedY + bedH * 0.28 + Math.random() * (bedH * 0.44);
+        }
+
+        // Color based on temperature & freeze risk
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        if (state.frostRisk > 0.5 && p.x > bedX && p.x < bedX + bedW) {
+          // Solid freeze particle
+          ctx.fillStyle = '#ffffff';
+        } else {
+          // Gaseous CO2 particle
+          ctx.fillStyle = p.x < bedX ? '#38bdf8' : (p.x < bedX + bedW ? '#f43f5e' : '#10b981');
+        }
+        ctx.fill();
+      });
+
+      // Canvas Status Annotation
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px JetBrains Mono';
+      ctx.fillText(`DUAL-BED ZEOMATRIX // $\\Delta H_{\\text{ads}} = 36.4\\text{ kJ/mol}$`, bedX + 10, bedY + bedH - 10);
+    }
+
+    // --- Throttled Chart Update Loop ---
+    let tickCount = 0;
+    function updateCharts() {
+      if (!phaseSpaceChart || !massFlowChart || !thermalChart) return;
+
+      // Update Phase-Space Scatter Chart (m_dot vs T)
+      phaseSpaceChart.data.datasets[0].data = [...state.trajectory];
+      phaseSpaceChart.update('none');
+
+      // Update Time-Series Plots
+      massFlowChart.data.datasets[0].data.shift();
+      massFlowChart.data.datasets[0].data.push(state.massFlow);
+      massFlowChart.data.datasets[1].data.shift();
+      massFlowChart.data.datasets[1].data.push(state.loadingPercent);
+      massFlowChart.update('none');
+
+      thermalChart.data.datasets[0].data.shift();
+      thermalChart.data.datasets[0].data.push(state.bedTemp);
+      thermalChart.data.datasets[1].data.shift();
+      thermalChart.data.datasets[1].data.push(state.heaterWatts);
+      thermalChart.update('none');
+    }
+
+    // --- Main Physics Simulation Loop ---
+    function animationLoop() {
+      stepSimulation();
+      renderCanvas();
+
+      tickCount++;
+      if (tickCount % 4 === 0) {
+        updateCharts();
+      }
+
+      requestAnimationFrame(animationLoop);
+    }
+
+    // --- Interactive User Controls & Actuators ---
+    function updateActuatorControls() {
+      const fanVal = parseInt(document.getElementById('sliderFanRPM').value);
+      const heatVal = parseInt(document.getElementById('sliderHeaterW').value);
+      const ambVal = parseInt(document.getElementById('sliderAmbTemp').value);
+
+      state.blowerRPM = fanVal;
+      state.heaterWatts = heatVal;
+      state.ambientTemp = ambVal;
+
+      document.getElementById('labelFanRPM').textContent = `${fanVal} RPM`;
+      document.getElementById('labelHeaterW').textContent = `${heatVal} W`;
+      document.getElementById('labelAmbTemp').textContent = `${ambVal} K (${ambVal - 273}°C)`;
+    }
+
+    function toggleAutonomousRecovery() {
+      state.autoRecoverEnabled = !state.autoRecoverEnabled;
+      const btn = document.getElementById('btnAutoRecover');
+      const text = document.getElementById('autoRecoverText');
+      if (state.autoRecoverEnabled) {
+        btn.className = "px-3 py-1.5 rounded-lg text-xs font-medium border border-cyan-500/50 bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 flex items-center gap-1.5 transition";
+        text.textContent = "Auto-Observer: ACTIVE";
+      } else {
+        btn.className = "px-3 py-1.5 rounded-lg text-xs font-medium border border-rose-500/50 bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 flex items-center gap-1.5 transition";
+        text.textContent = "Auto-Observer: DISABLED";
+      }
+    }
+
+    function resetSimulationNominal() {
+      state.blowerRPM = 1240;
+      state.heaterWatts = 18;
+      state.ambientTemp = 190;
+      state.bedTemp = 178.5;
+      state.massFlow = 0.82;
+      state.frostRisk = 0.02;
+      state.loadingPercent = 41.8;
+      state.regime = 'ADSORPTION';
+      state.trajectory = [];
+
+      document.getElementById('sliderFanRPM').value = 1240;
+      document.getElementById('sliderHeaterW').value = 18;
+      document.getElementById('sliderAmbTemp').value = 190;
+      updateActuatorControls();
+    }
+
+    function executeEmergencyDefrost() {
+      state.heaterWatts = 145;
+      state.bedTemp = Math.max(state.bedTemp, 160);
+      state.frostRisk = 0.05;
+      document.getElementById('sliderHeaterW').value = 145;
+      document.getElementById('labelHeaterW').textContent = '145 W';
+    }
+
+    // --- Fault Injection Scenarios ---
+    function injectFault(type) {
+      if (type === 'intake_clog') {
+        // Sudden drop in mass flow while cold ambient air remains
+        state.blowerRPM = 350;
+        document.getElementById('sliderFanRPM').value = 350;
+        document.getElementById('labelFanRPM').textContent = '350 RPM';
+      } else if (type === 'sublimation_plunge') {
+        // Polar night thermal drop plunging below 145 K
+        state.ambientTemp = 142;
+        state.bedTemp = 144;
+        state.heaterWatts = 0;
+        document.getElementById('sliderAmbTemp').value = 142;
+        document.getElementById('sliderHeaterW').value = 0;
+        updateActuatorControls();
+      } else if (type === 'exotherm_runaway') {
+        // Severe desorb thermal pulse
+        state.bedTemp = 245;
+        state.heaterWatts = 110;
+        document.getElementById('sliderHeaterW').value = 110;
+        updateActuatorControls();
+      } else if (type === 'valve_stall') {
+        // Pneumatic oscillation
+        state.massFlow = 0.15;
+        state.blowerRPM = 2800;
+        document.getElementById('sliderFanRPM').value = 2800;
+        updateActuatorControls();
+      }
+    }
+
+    // --- Onload Bootstrap ---
+    window.onload = function() {
+      // 1. Initialize Lucide Icons
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+
+      // 2. Setup Canvas & Particles
+      resizeCanvas();
+      initParticles();
+
+      // 3. Initialize Chart.js
+      initCharts();
+
+      // 4. Start Physics & Telemetry Loop
+      animationLoop();
+
+      // 5. Trigger initial MathJax typesetting
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().catch(err => console.debug('MathJax error:', err));
+      }
+    };
+  </script>
+</body>
+</html>
